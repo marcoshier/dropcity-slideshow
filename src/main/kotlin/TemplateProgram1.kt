@@ -1,11 +1,8 @@
-/*
 import org.openrndr.animatable.Animatable
 import org.openrndr.animatable.easing.Easing
 import org.openrndr.application
 import org.openrndr.color.ColorRGBa
 import org.openrndr.math.IntVector2
-import kotlin.math.cos
-import kotlin.math.sin
 import org.openrndr.draw.*
 import org.openrndr.extra.noise.Random
 import org.openrndr.extras.imageFit.FitMethod
@@ -30,22 +27,14 @@ fun main() = application {
         val slideshow = Slideshow(drawer)
         slideshow.prepare(0)
 
-        repeat(5.0) {
+        repeat(0.7) {
             slideshow.triggerNewImage()
         }
-
-        extend(ScreenRecorder())
+/*
+        extend(ScreenRecorder())*/
         extend {
             drawer.stroke = null
             slideshow.draw()
-
-            println(height.toDouble())
-            val rect = Rectangle(0.0, 0.0, 4 * 168.0, height.toDouble())
-
-            drawer.stroke = ColorRGBa.BLUE
-            drawer.fill = null
-            drawer.rectangle(rect)
-
         }
     }
 }
@@ -59,11 +48,10 @@ class Image(val slotPosition: Int, val slotsWidth: Int, val cb: ColorBuffer): An
 
     fun fadeIn() {
         this.cancel()
-
-
         colorFade = ColorRGBa.BLACK
 
         isActive = true
+
         animate(::colorFade, ColorRGBa.BLACK, 50, Easing.None).completed.listen { // fade in
             animate(::colorFade, ColorRGBa.fromHex("#EDFB92").opacify(1.0), 2000, Easing.None).completed.listen { // fade in
                 animate(::colorFade, ColorRGBa.fromHex("#EDFB92").opacify(0.0), 2000, Easing.None).completed.listen { // fade in
@@ -99,11 +87,10 @@ class Image(val slotPosition: Int, val slotsWidth: Int, val cb: ColorBuffer): An
 
 }
 
-
 class Slideshow(val drawer: Drawer){
     val imagesPath = "data/images/Chapters/"
 
-    val slots = (0..28).map { Pair(it, false) }.toMutableList()
+    var slots = (0..28).map { Pair(it, false) }.toMutableList()
 
     val images = mutableListOf<Image>()
     var cbs = mutableListOf<ColorBuffer>()
@@ -120,34 +107,66 @@ class Slideshow(val drawer: Drawer){
     var currentIndex = 0
 
     fun triggerNewImage() {
-        if(images.size != cbs.size) {
 
-            val unoccupied = slots.filter { !it.second }.map { it.first }
+        val currentCB = cbs[currentIndex]
+        var slotPosition = if(currentIndex % 2 == 0) Random.int(0, 28 - currentCB.width / 168) else 0
+        //println(slots)
 
-            val slotsWidth = cbs[currentIndex].width / 168
-            val slotPosition = Random.int(max = unoccupied.size)
+        var emptyFound = false
 
-            for(j in slotPosition until slotsWidth) {
-                slots[j] = Pair(j, true)
+        for(j in slotPosition until slots.size - currentCB.width / 168) { // run through all the blocks
+            val slot = slots[j]
+
+            if(!slot.second) { // found an empty one!
+                when(currentCB.width / 168) { // does it match the width? (are the consecutive ones also empty? based on width)
+                    // if YES -> assign position!   if NO -> wait for the next repeat
+                    1 -> { slotPosition = slot.first; emptyFound = true }
+                    2 -> if(!slots[j + 1].second) { slotPosition = slot.first; emptyFound = true } else {println("No space available"); break }
+                    3 -> if(!slots[j + 1].second && !slots[j + 2].second) { slotPosition = slot.first; emptyFound = true } else {println("No space available"); break }
+                }
+                break
             }
+        }
 
-            val image = Image(slotPosition, slotsWidth, cbs[currentIndex])
+
+        if(emptyFound) {
+            println("Empty found! $slotPosition, ${currentCB.width / 168}")
+            val image = Image(slotPosition, currentCB.width / 168, cbs[currentIndex])
+
+            // assign active slots
+            for(i in slotPosition until slotPosition + (currentCB.width / 168)) {
+                slots[i] = Pair(i, true)
+            }
             images.add(image)
+            image.fadeIn()
 
-            images[currentIndex].fadeIn()
 
             currentIndex++
 
-        } else {
-            println("Finished images")
+            if(currentIndex == cbs.size) {
+                currentIndex = 0
+            }
+
         }
+
 
     }
 
     fun draw() {
-        for(image in images.filter { it.isActive }) {
-            image.draw(drawer)
+        for(j in images.size - 1 downTo 0) {
+            val image = images[j]
+            if(image.isActive) {
+                image.draw(drawer)
+            } else {
+                if(slots[image.slotPosition].second) {
+                    for(i in image.slotPosition until image.slotPosition + image.cb.width / 168) {
+                        slots[i] = Pair(i, false)
+                        images.remove(image)
+                    }
+                }
+            }
         }
+
     }
 
     private fun loadCBs(files: MutableList<File>): MutableList<ColorBuffer> {
@@ -208,4 +227,3 @@ class Slideshow(val drawer: Drawer){
 
 
 
-*/
